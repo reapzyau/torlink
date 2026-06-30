@@ -63,9 +63,19 @@ torlink works with no setup, but if you want it to announce to your own trackers
 }
 ```
 
-The list **replaces** the defaults, so keep any built-in trackers you still want. These are merged into every download (and into the magnets torlink builds), on top of whatever trackers a source already provides. An empty or invalid list falls back to the shipped defaults. Restart torlink to apply changes.
+The list **replaces** the defaults, so keep any built-in trackers you still want. These are merged into every **public** download (and into the magnets torlink builds), on top of whatever trackers a source already provides. An empty or invalid list falls back to the shipped defaults. Restart torlink to apply changes.
 
-> Private trackers usually require the passkey announce URL and forbid DHT/PEX; this option adds your announce URL but does not disable DHT.
+### Private trackers
+
+torlink is private-tracker safe. For any torrent flagged private (the `private` flag in its `.torrent`), it:
+
+- **withholds your public trackers** — a private torrent announces only to its own tracker, never to the public ones above;
+- **disables DHT and PEX** for that torrent (handled by webtorrent per the private flag);
+- **disables LSD** (Local Service Discovery) globally, since webtorrent does not gate it on the private flag.
+
+Together these keep a private torrent's swarm fully inside the tracker's accounting — the leaks that get accounts banned.
+
+> **Always add a private torrent as a `.torrent` file, never a magnet.** A magnet's private flag only arrives with metadata fetched over the DHT, so a magnet leaks to the DHT *before* any client knows it is private — true of every BitTorrent client, not just torlink. Download the `.torrent` from your tracker and use that. Your passkey lives only in your local `config.json` (gitignored) — never commit it anywhere public.
 
 ## Contributing
 

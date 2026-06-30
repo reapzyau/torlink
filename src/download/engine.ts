@@ -1,5 +1,26 @@
+import { readFileSync } from "node:fs";
 import WebTorrent, { type Torrent } from "webtorrent";
 import { getTrackers } from "../sources/magnet";
+
+// A .torrent flagged private carries the bencoded token `7:privatei1e` (the key
+// "private" with integer value 1) inside its info dict. Detecting it up front
+// lets us keep a private torrent off public trackers — announcing it to
+// opentrackr et al. would expose the swarm outside the private tracker's
+// accounting, which is exactly the kind of leak that gets accounts banned.
+const PRIVATE_FLAG = Buffer.from("7:privatei1e");
+
+// Only a real .torrent file can be inspected before joining the swarm. A magnet
+// can't be: its private flag lives in metadata fetched later (over the DHT),
+// which is precisely why a private tracker's torrent must never be added by
+// magnet. infoHash/magnet sources aren't files, so they read as non-private.
+export function isPrivateTorrentSource(source: string): boolean {
+  if (source.startsWith("magnet:")) return false;
+  try {
+    return readFileSync(source).includes(PRIVATE_FLAG);
+  } catch {
+    return false;
+  }
+}
 
 export interface TorrentProgress {
   progress: number;
@@ -39,7 +60,14 @@ export class TorrentEngine {
 
   private ensureClient(): WebTorrent {
     if (!this.client) {
-      this.client = new WebTorrent();
+      // lsd:false disables Local Service Discovery for every torrent. webtorrent
+      // auto-disables DHT and PEX for private torrents but does NOT gate LSD on
+      // the private flag, so a private torrent would still broadcast itself on
+      // the local network — a leak private trackers ban for. LSD adds little for
+      // a CLI fetcher, so turning it off wholesale is the safe, simple fix. DHT
+      // stays on (public magnets need it; webtorrent disables it per private
+      // torrent on its own).
+      this.client = new WebTorrent({ lsd: false });
       this.client.on("error", () => {});
     }
     return this.client;
@@ -60,11 +88,17 @@ export class TorrentEngine {
 
     let torrent: Torrent;
     try {
-      // Merge the configured trackers into every torrent. webtorrent unions
-      // these with any trackers already in the magnet/.torrent, so this covers
-      // site-supplied magnets (e.g. eztv, subsplease) as well as the ones we
-      // build ourselves — no torrent misses the configured announce list.
-      torrent = client.add(source, { path: dir, announce: getTrackers() });
+      // Merge the configured trackers into every PUBLIC torrent. webtorrent
+      // unions these with any trackers already in the magnet/.torrent, so this
+      // covers site-supplied magnets (e.g. eztv, subsplease) as well as the ones
+      // we build ourselves. A private torrent is the exception: we withhold our
+      // public trackers entirely so it announces only to its own (private)
+      // tracker — pairing with webtorrent's per-torrent DHT/PEX shutoff to keep
+      // the swarm fully inside the private tracker's accounting.
+      const opts = isPrivateTorrentSource(source)
+        ? { path: dir }
+        : { path: dir, announce: getTrackers() };
+      torrent = client.add(source, opts);
     } catch (e) {
       handlers.onError?.(message(e));
       return;
