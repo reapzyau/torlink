@@ -49,6 +49,24 @@ A short, hand-picked list of trusted sources:
 
 Games are the only category that can run code, so they come from FitGirl alone, a repacker with a long, trusted track record; everything else is plain video and subtitles. If a source is down, the search carries on without it, and torlink tells you which one is offline.
 
+## Custom trackers
+
+torlink works with no setup, but if you want it to announce to your own trackers — extra public ones for more peers, or a private tracker — you can. On first run it writes a small `config.json` (under your OS config dir, e.g. `~/.config/torlink/config.json` on Linux/macOS). Edit the `trackers` array:
+
+```json
+{
+  "downloadDir": "/home/you/Downloads/torlink",
+  "trackers": [
+    "udp://tracker.opentrackr.org:1337/announce",
+    "https://your.private.tracker/<passkey>/announce"
+  ]
+}
+```
+
+The list **replaces** the defaults, so keep any built-in trackers you still want. These are merged into every download (and into the magnets torlink builds), on top of whatever trackers a source already provides. An empty or invalid list falls back to the shipped defaults. Restart torlink to apply changes.
+
+> Private trackers usually require the passkey announce URL and forbid DHT/PEX; this option adds your announce URL but does not disable DHT.
+
 ## Contributing
 
 To run or work on torlink locally:

@@ -2,12 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Box, Text, useApp, useInput, useStdout, useStdin } from "ink";
 import { promises as fs } from "node:fs";
 import { loadConfig, saveConfig, type Config } from "../config/config";
+import { configFile } from "../config/paths";
 import { normalizeDownloadDir } from "../config/folder";
 import { DownloadQueue } from "../download/queue";
 import { loadQueue, loadSeeds } from "../download/persist";
 import { loadHistory } from "../download/history";
 import { reconcileQueue } from "../download/reconcile";
-import { parseMagnet } from "../sources/magnet";
+import { parseMagnet, setTrackers } from "../sources/magnet";
 import { magnetFromTorrentFile } from "../sources/torrentFile";
 import { readClipboard, writeClipboard } from "../util/clipboard";
 import { cleanText, truncate } from "../util/format";
@@ -92,6 +93,12 @@ export function App({
     let alive = true;
     void (async () => {
       const cfg = await loadConfig();
+      // Seed the active tracker list before any search builds a magnet or any
+      // download is added, so both paths use the configured trackers.
+      setTrackers(cfg.trackers);
+      // Materialize config.json on first run so the trackers list is visible
+      // and editable (loadConfig returns defaults without writing a file).
+      void fs.access(configFile).catch(() => saveConfig(cfg));
       const q = new DownloadQueue();
       q.restore(reconcileQueue(await loadQueue()));
       q.restoreHistory(await loadHistory());

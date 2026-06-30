@@ -1,4 +1,6 @@
-const TRACKERS = [
+// The trackers torlink ships with. Used as the default when the user's config
+// has none, and as the fallback if a config supplies an empty/invalid list.
+export const DEFAULT_TRACKERS = [
   "udp://tracker.opentrackr.org:1337/announce",
   "udp://open.demonii.com:1337/announce",
   "udp://tracker.openbittorrent.com:6969/announce",
@@ -8,9 +10,27 @@ const TRACKERS = [
   "udp://tracker.dler.org:6969/announce",
 ];
 
+// The active tracker list — the single source of truth. Seeded from the user's
+// config at startup (setTrackers) and read by both buildMagnet (the tr= params
+// on magnets we construct) and the download engine (the announce list merged
+// into every torrent it adds). Defaults to DEFAULT_TRACKERS so behaviour is
+// unchanged until a config overrides it.
+let activeTrackers: string[] = [...DEFAULT_TRACKERS];
+
+// Replace the active tracker list. An empty list is ignored and the shipped
+// defaults are kept, so a malformed config can never strand downloads with zero
+// trackers to announce to.
+export function setTrackers(trackers: string[]): void {
+  activeTrackers = trackers.length > 0 ? [...trackers] : [...DEFAULT_TRACKERS];
+}
+
+export function getTrackers(): string[] {
+  return activeTrackers;
+}
+
 export function buildMagnet(infoHash: string, name: string): string {
   const dn = encodeURIComponent(name);
-  const tr = TRACKERS.map((t) => `&tr=${encodeURIComponent(t)}`).join("");
+  const tr = activeTrackers.map((t) => `&tr=${encodeURIComponent(t)}`).join("");
   return `magnet:?xt=urn:btih:${infoHash}&dn=${dn}${tr}`;
 }
 

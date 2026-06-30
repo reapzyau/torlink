@@ -1,5 +1,12 @@
-import { describe, it, expect } from "vitest";
-import { parseMagnet, normalizeInfoHash, buildMagnet } from "./magnet";
+import { describe, it, expect, afterEach } from "vitest";
+import {
+  parseMagnet,
+  normalizeInfoHash,
+  buildMagnet,
+  setTrackers,
+  getTrackers,
+  DEFAULT_TRACKERS,
+} from "./magnet";
 
 describe("parseMagnet", () => {
   it("keeps a full 40-char hex info hash", () => {
@@ -46,5 +53,26 @@ describe("buildMagnet", () => {
     expect(out).toContain("xt=urn:btih:abc123");
     expect(out).toContain("dn=My%20Movie%202024");
     expect(out).toContain("&tr=");
+  });
+});
+
+describe("configurable trackers", () => {
+  afterEach(() => setTrackers(DEFAULT_TRACKERS));
+
+  it("defaults to the shipped tracker list", () => {
+    expect(getTrackers()).toEqual(DEFAULT_TRACKERS);
+  });
+
+  it("buildMagnet uses the active (configured) tracker list", () => {
+    const custom = "udp://my.tracker.example:1337/announce";
+    setTrackers([custom]);
+    const out = buildMagnet("abc123", "X");
+    expect(out).toContain(`&tr=${encodeURIComponent(custom)}`);
+    expect(out).not.toContain(encodeURIComponent(DEFAULT_TRACKERS[0]!));
+  });
+
+  it("ignores an empty list and keeps the defaults", () => {
+    setTrackers([]);
+    expect(getTrackers()).toEqual(DEFAULT_TRACKERS);
   });
 });

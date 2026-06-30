@@ -1,4 +1,5 @@
 import WebTorrent, { type Torrent } from "webtorrent";
+import { getTrackers } from "../sources/magnet";
 
 export interface TorrentProgress {
   progress: number;
@@ -59,7 +60,11 @@ export class TorrentEngine {
 
     let torrent: Torrent;
     try {
-      torrent = client.add(source, { path: dir });
+      // Merge the configured trackers into every torrent. webtorrent unions
+      // these with any trackers already in the magnet/.torrent, so this covers
+      // site-supplied magnets (e.g. eztv, subsplease) as well as the ones we
+      // build ourselves — no torrent misses the configured announce list.
+      torrent = client.add(source, { path: dir, announce: getTrackers() });
     } catch (e) {
       handlers.onError?.(message(e));
       return;
